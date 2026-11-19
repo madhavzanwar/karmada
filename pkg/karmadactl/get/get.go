@@ -747,9 +747,12 @@ func (g *CommandGetOptions) watchMultiClusterObj(watchObjs []WatchObj, mapping *
 	wg.Add(len(watchObjs))
 	for _, watchObj := range watchObjs {
 		go func(watchObj WatchObj) {
+			defer wg.Done()
+
 			obj, err := watchObj.r.Object()
 			if err != nil {
-				panic(err)
+				klog.Errorf("Failed to get object for cluster %s: %v", watchObj.Cluster, err)
+				return
 			}
 
 			rv := "0"
@@ -759,7 +762,8 @@ func (g *CommandGetOptions) watchMultiClusterObj(watchObjs []WatchObj, mapping *
 				// an initial watch event
 				rv, err = meta.NewAccessor().ResourceVersion(obj)
 				if err != nil {
-					panic(err)
+					klog.Errorf("Failed to get resourceVersion for cluster %s: %v", watchObj.Cluster, err)
+					return
 				}
 				// we can start outputting objects now, watches started from lists don't emit synthetic added events
 				*outputObjects = true
@@ -771,7 +775,8 @@ func (g *CommandGetOptions) watchMultiClusterObj(watchObjs []WatchObj, mapping *
 			// print watched changes
 			w, err := watchObj.r.Watch(rv)
 			if err != nil {
-				panic(err)
+				klog.Errorf("Failed to watch resources for cluster %s: %v", watchObj.Cluster, err)
+				return
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
