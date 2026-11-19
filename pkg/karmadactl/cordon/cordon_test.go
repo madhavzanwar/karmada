@@ -266,3 +266,89 @@ func prepClusterCreation(f util.Factory, clusterName string) error {
 	}
 	return nil
 }
+
+func TestCommandCordonOption_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		clusterName string
+		wantErr     bool
+	}{
+		{
+			name:        "valid cluster name",
+			clusterName: "member1",
+			wantErr:     false,
+		},
+		{
+			name:        "valid cluster name with hyphen",
+			clusterName: "member-1",
+			wantErr:     false,
+		},
+		{
+			name:        "empty cluster name",
+			clusterName: "",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid cluster name with uppercase",
+			clusterName: "Member1",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid cluster name with underscore",
+			clusterName: "member_1",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := &CommandCordonOption{
+				ClusterName: tt.clusterName,
+			}
+			if err := o.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCommandCordonOption_Complete(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantName string
+		wantErr  bool
+	}{
+		{
+			name:     "valid single arg",
+			args:     []string{"member1"},
+			wantName: "member1",
+			wantErr:  false,
+		},
+		{
+			name:     "empty args",
+			args:     []string{},
+			wantName: "",
+			wantErr:  true,
+		},
+		{
+			name:     "multiple args",
+			args:     []string{"member1", "member2"},
+			wantName: "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := &CommandCordonOption{}
+			err := o.Complete(tt.args)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Complete() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if o.ClusterName != tt.wantName {
+				t.Errorf("Complete() ClusterName = %s, want %s", o.ClusterName, tt.wantName)
+			}
+		})
+	}
+}

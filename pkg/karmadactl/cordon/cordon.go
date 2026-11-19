@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/kubectl/pkg/util/templates"
 
 	clusterv1alpha1 "github.com/karmada-io/karmada/pkg/apis/cluster/v1alpha1"
+	"github.com/karmada-io/karmada/pkg/apis/cluster/validation"
 	karmadaclientset "github.com/karmada-io/karmada/pkg/generated/clientset/versioned"
 	"github.com/karmada-io/karmada/pkg/karmadactl/options"
 	"github.com/karmada-io/karmada/pkg/karmadactl/util"
@@ -75,6 +77,9 @@ func NewCmdCordon(f util.Factory, parentCommand string) *cobra.Command {
 			if err := opts.Complete(args); err != nil {
 				return err
 			}
+			if err := opts.Validate(); err != nil {
+				return err
+			}
 			if err := RunCordonOrUncordon(DesiredCordon, f, opts); err != nil {
 				return err
 			}
@@ -107,6 +112,9 @@ func NewCmdUncordon(f util.Factory, parentCommand string) *cobra.Command {
 		ValidArgsFunction:     utilcomp.SpecifiedResourceTypeAndNameCompletionFunc(f, []string{"cluster"}),
 		RunE: func(_ *cobra.Command, args []string) error {
 			if err := opts.Complete(args); err != nil {
+				return err
+			}
+			if err := opts.Validate(); err != nil {
 				return err
 			}
 			if err := RunCordonOrUncordon(DesiredUnCordon, f, opts); err != nil {
@@ -149,9 +157,23 @@ func (o *CommandCordonOption) Complete(args []string) error {
 	return nil
 }
 
+// Validate checks whether the option inputs are valid.
+func (o *CommandCordonOption) Validate() error {
+	if len(o.ClusterName) == 0 {
+		return errors.New("cluster name is required")
+	}
+	if errMsgs := validation.ValidateClusterName(o.ClusterName); len(errMsgs) != 0 {
+		return fmt.Errorf("invalid cluster name(%s): %s", o.ClusterName, strings.Join(errMsgs, ";"))
+	}
+	return nil
+}
+
 // RunCordonOrUncordon exec marks the cluster unschedulable or schedulable according to desired.
 // if true cordon cluster otherwise uncordon cluster.
 func RunCordonOrUncordon(desired int, f util.Factory, opts CommandCordonOption) error {
+	if err := opts.Validate(); err != nil {
+		return err
+	}
 	cordonOrUncordon := "cordon"
 	if desired == DesiredUnCordon {
 		cordonOrUncordon = "un" + cordonOrUncordon
